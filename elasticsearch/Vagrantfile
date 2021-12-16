@@ -1,0 +1,116 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+BOX_IMAGE = "centos/7"
+NODE_COUNT = 3
+BASE_IP = "192.168.56"
+BASE_RANGE = 20
+NODE_NAME = "elastic"
+
+#global script
+$global = <<SCRIPT
+#check for private key for vm-vm comm
+[ -f /vagrant/id_rsa ] || {
+  ssh-keygen -t rsa -f /vagrant/id_rsa -q -N ''
+}
+#deploy key
+[ -f /home/vagrant/.ssh/id_rsa ] || {
+    cp /vagrant/id_rsa /home/vagrant/.ssh/id_rsa
+    chmod 0600 /home/vagrant/.ssh/id_rsa
+}
+#allow ssh passwordless
+cat /vagrant/id_rsa.pub >> /home/vagrant/.ssh/authorized_keys
+chmod 0600 /home/vagrant/.ssh/authorized_keys
+
+#exclude node* from host checking
+cat > /home/vagrant/.ssh/config <<EOF
+Host #{NODE_NAME}*
+   StrictHostKeyChecking no
+   UserKnownHostsFile=/dev/null
+EOF
+chown vagrant /home/vagrant/.ssh/*
+
+#Disable ipv6 protocol
+cat >> /etc/sysctl.conf <<EOF
+net.ipv6.conf.all.disable_ipv6 = 1
+net.ipv6.conf.default.disable_ipv6 = 1
+EOF
+sysctl -p
+
+#populate /etc/hosts
+for x in {#{BASE_RANGE+1}..#{BASE_RANGE+NODE_COUNT}}; do
+  grep #{BASE_IP}.${x} /etc/hosts &>/dev/null || {
+      echo #{BASE_IP}.${x} #{NODE_NAME}${x##?} | sudo tee -a /etc/hosts &>/dev/null
+  }
+done
+#end script
+SCRIPT
+
+Vagrant.configure("2") do |config|
+
+  config.vm.provision "shell", inline: $global
+
+  (1..NODE_COUNT).to_a.reverse.each do |i|
+    config.vm.define "#{NODE_NAME}#{i}" do |subconfig|
+      subconfig.vm.box = BOX_IMAGE
+      subconfig.vm.hostname = "#{NODE_NAME}#{i}"
+      subconfig.hostmanager.enabled = false
+      subconfig.hostmanager.manage_guest = true
+
+      subconfig.vm.network :private_network, ip: "#{BASE_IP}.#{i+BASE_RANGE}"
+      # subconfig.vm.network "forwarded_port", guest: 80, host: 8080
+      # subconfig.vm.network "forwarded_port", guest: 80, host: 8080, host_ip: "127.0.0.1"
+
+      subconfig.vm.provider "virtualbox" do |vb|
+         # Display the VirtualBox GUI when booting the machine
+         vb.gui = false
+
+         # Customize the amount of memory on the VM:
+         vb.memory = "4096"
+         vb.cpus = 2
+      end
+      if "#{i}" == "1"
+        #subconfig.vm.synced_folder "../../../UEBA_Solution", "/home/vagrant/UEBA_Solution", owner: "vagrant", group: "vagrant", type: "rsync"
+        subconfig.vm.network "forwarded_port", guest: 5601, host: 5601
+        subconfig.vm.network "forwarded_port", guest: 9200, host: 9200
+        subconfig.vm.provision "shell", inline: <<-SHELL
+          yum -y update
+          yum -y install nc net-tools vim
+          yum -y install epel-release
+          yum -y update
+          yum -y install ansible
+          yum -y update
+          #yum -y install python2-pip
+          #pip2 install --upgrade pip
+          #pip2 install ansible==2.7.17
+          echo "[servers]" >> /etc/ansible/hosts
+          for x in {#{BASE_RANGE+1}..#{BASE_RANGE+NODE_COUNT}}; do
+            grep #{BASE_IP}.${x} /etc/ansible/hosts &>/dev/null || {
+                echo "#{NODE_NAME}${x##?} ansible_ssh_hosts=#{BASE_IP}.${x}" | sudo tee -a /etc/ansible/hosts &>/dev/null
+            }
+          done
+          mkdir -p /etc/ansible/group_vars
+          grep "---" /etc/ansible/group_vars/servers &> /dev/null || {
+            echo "---" >> /etc/ansible/group_vars/servers
+          }
+          grep "ansible_ssh_user: vagrant" /etc/ansible/group_vars/servers &> /dev/null || {
+            echo "ansible_ssh_user: vagrant" >> /etc/ansible/group_vars/servers
+          }
+          #INSTALL ANSIBLE GALAXIES FOR ELASTICSEARCH
+          sudo -u vagrant ansible-galaxy install elastic.elasticsearch,v7.16.1
+          sudo -u vagrant ansible-galaxy install elastic.beats,v7.16.1
+
+          sudo -u vagrant cp -r /vagrant/* /home/vagrant/
+          su - vagrant -c "ansible-playbook -i /etc/ansible/hosts /home/vagrant/install_ELK.yml"
+
+        SHELL
+      else
+        subconfig.vm.provision "shell", inline: <<-SHELL
+          yum -y update
+          yum -y install nc net-tools vim
+        SHELL
+      end
+
+    end
+  end
+end

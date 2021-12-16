@@ -1,0 +1,246 @@
+- hosts: elastic1
+  roles:
+    - role: elastic.elasticsearch
+  vars:
+    es_data_dirs:
+      - "/opt/elastic/data"
+    es_log_dir: "/opt/elastic/logs"
+    es_config:
+      network.host: "0.0.0.0"
+      cluster.name: "test-cluster"
+      cluster.initial_master_nodes: "elastic1"
+      discovery.seed_hosts: "elastic1:9300"
+      http.port: 9200
+      node.data: true
+      node.master: true
+      bootstrap.memory_lock: false
+    es_plugins:
+     - plugin: ingest-attachment
+    es_xpack_features:
+     - security
+     - alerting
+    es_api_basic_auth_username: elastic
+    es_api_basic_auth_password: elastic
+    es_users:
+      native:
+        kibana:
+          password: elastic
+          roles:
+            - kibana_system
+          elastic:
+            password: elastic
+    es_roles:
+      native:
+        logstash:
+          cluster:
+            - manage_index_templates
+        logstash_system:
+          cluster:
+            - manage_index_templates
+
+- hosts: elastic1
+  tasks:
+    - name: Install Kibana & Logstash
+      yum:
+        name:
+          - java
+          - kibana-7.16.1
+          - logstash-7.16.1
+        state: latest
+        update_cache: true
+      become: true
+
+    - name: Execute systemd install Logstash service
+      shell:
+        cmd: /usr/share/logstash/bin/system-install /etc/logstash/startup.options systemd
+      become: true
+
+    - name: Copy Kibana configuration
+      copy:
+        src: ./kibana/kibana.yml
+        dest: /etc/kibana/kibana.yml
+        owner: kibana
+        group: kibana
+      become: true
+
+    - name: Copy Logstash Config Example
+      copy:
+        src: ./logstash/test.conf
+        dest: /etc/logstash/conf.d/test.conf
+        owner: logstash
+        group: logstash
+      become: true
+
+    - name: Copy Logstash Test Data
+      copy:
+        src: ./logstash/testdata.log
+        dest: /tmp/testdata.log
+        owner: logstash
+        group: logstash
+      become: true
+
+    - name: Logstash - Activate Interfaces
+      lineinfile:
+        dest: /etc/logstash/logstash.yml
+        regexp: '^#http.host: "127.0.0.1"'
+        line: 'http.host: "0.0.0.0"'
+        backrefs: no
+      become: true
+
+    - name: Reload Kibana & Logstash daemons
+      systemd:
+        daemon_reload: yes
+      become: true
+
+    - name: Launch Kibana service
+      systemd:
+        name: kibana.service
+        enabled: yes
+        state: started
+      become: true
+
+    - name: Launch Logstash service
+      systemd:
+        name: logstash
+        enabled: yes
+        state: started
+        daemon_reload: yes
+      become: true
+
+- hosts: elastic2
+  roles:
+    - role: elastic.elasticsearch
+  vars:
+    es_config:
+      network.host: "0.0.0.0"
+      cluster.name: "test-cluster"
+      cluster.initial_master_nodes: "elastic1"
+      discovery.seed_hosts: "elastic1:9300"
+      http.port: 9200
+      node.data: true
+      node.master: true
+      bootstrap.memory_lock: false
+    es_plugins:
+      - plugin: ingest-attachment
+    es_xpack_features:
+     - security
+     - alerting
+    es_api_basic_auth_username: elastic
+    es_api_basic_auth_password: elastic
+
+- hosts: elastic3
+  roles:
+    - role: elastic.elasticsearch
+  vars:
+    es_config:
+      network.host: "0.0.0.0"
+      cluster.name: "test-cluster"
+      cluster.initial_master_nodes: "elastic1"
+      discovery.seed_hosts: "elastic1:9300"
+      http.port: 9200
+      node.data: true
+      node.master: true
+      bootstrap.memory_lock: false
+    es_plugins:
+      - plugin: ingest-attachment
+    es_xpack_features:
+     - security
+     - alerting
+    es_api_basic_auth_username: elastic
+    es_api_basic_auth_password: elastic
+
+- hosts: elastic1
+  roles:
+    - role: elastic.beats
+  vars:
+    beats_version: 7.16.1
+    beat: filebeat
+    output_conf: {"elasticsearch":{"hosts":["elastic1:9200","elastic2:9200","elastic3:9200"], "username":"elastic", "password":"elastic"}}
+    beat_conf:
+      filebeat:
+        modules:
+          - module: "elasticsearch"
+            server:
+              enabled: true
+              var.paths:
+                - /opt/elastic/logs/*_server.json
+            gc:
+              enabled: true
+              var.paths:
+                - /opt/elastic/logs/gc.log
+                - /opt/elastic/logs/gc.log.[0-9]*
+            audit:
+              enabled: true
+              var.paths:
+                - /opt/elastic/logs/*.audit.json
+            slowlog:
+              enabled: true
+              var.paths:
+                - /opt/elastic/logs/*_slowlog.json
+            deprecation:
+              enabled: true
+              var.paths:
+                - /opt/elastic/logs/*_deprecation.json
+          - module: "kibana"
+          - module: "logstash"
+        # inputs:
+        #   - type: log
+        #     enabled: true
+        #     paths: /var/log/*/*.log
+
+- hosts: elastic3
+  roles:
+    - role: elastic.beats
+  vars:
+    beats_version: 7.16.1
+    beat: filebeat
+    output_conf: {"elasticsearch":{"hosts":["elastic1:9200","elastic2:9200","elastic3:9200"], "username":"elastic", "password":"elastic"}}
+    beat_conf:
+      filebeat:
+        modules:
+          - module: "elasticsearch"
+
+- hosts: elastic2
+  roles:
+    - role: elastic.beats
+  vars:
+    beats_version: 7.16.1
+    beat: metricbeat
+    output_conf: {"elasticsearch":{"hosts":["elastic1:9200","elastic2:9200","elastic3:9200"], "username":"elastic", "password":"elastic"}}
+    beat_conf:
+      metricbeat:
+        modules:
+          - module: "elasticsearch"
+            metricsets:
+              - ccr
+              - cluster_stats
+              - enrich
+              - index
+              - index_recovery
+              - index_summary
+              - ml_job
+              - node_stats
+              - shard
+            enabled: true
+            period: 10s
+            hosts: ["http://elastic1:9200", "http://elastic2:9200", "http://elastic3:9200"]
+            username: "elastic"
+            password: "elastic"
+            xpack.enabled: true
+          - module: "kibana"
+            metricsets:
+              - stats
+            period: 10s
+            hosts: ["elastic1:5601"]
+            username: "elastic"
+            password: "elastic"
+            xpack.enabled: true
+          - module: "logstash"
+            metricsets:
+                - node
+                - node_stats
+            period: 10s
+            hosts: ["http://elastic1:9600"]
+            username: "elastic"
+            username: "elastic"
+            xpack.enabled: true
