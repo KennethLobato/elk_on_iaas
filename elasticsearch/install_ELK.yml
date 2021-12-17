@@ -8,8 +8,8 @@
       - "/opt/elastic/data"
     es_log_dir: "/opt/elastic/logs"
     es_config:
-      network.host: "_eth1_"
-      cluster.name: "test-cluster"
+      network.host: "0.0.0.0"
+      cluster.name: "correos-poc"
       cluster.initial_master_nodes: "elastic1"
       discovery.seed_hosts: "elastic1:9300"
       http.port: 9200
@@ -119,8 +119,8 @@
       - "/opt/elastic/data"
     es_log_dir: "/opt/elastic/logs"
     es_config:
-      network.host: "_eth1_"
-      cluster.name: "test-cluster"
+      network.host: "0.0.0.0"
+      cluster.name: "correos-poc"
       cluster.initial_master_nodes: "elastic1"
       discovery.seed_hosts: "elastic1:9300"
       http.port: 9200
@@ -145,13 +145,39 @@
       - "/opt/elastic/data"
     es_log_dir: "/opt/elastic/logs"
     es_config:
-      network.host: "_eth1_"
-      cluster.name: "test-cluster"
+      network.host: "0.0.0.0"
+      cluster.name: "correos-poc"
       cluster.initial_master_nodes: "elastic1"
       discovery.seed_hosts: "elastic1:9300"
       http.port: 9200
       node.data: true
       node.master: true
+      bootstrap.memory_lock: false
+    es_plugins:
+      - plugin: ingest-attachment
+    es_xpack_features:
+     - security
+     - alerting
+    es_api_basic_auth_username: elastic
+    es_api_basic_auth_password: elastic
+
+- hosts: elastic4
+  roles:
+    - role: elastic.elasticsearch
+  vars:
+    es_version: "7.16.1"
+    oss_version: false
+    es_data_dirs:
+      - "/opt/elastic/data"
+    es_log_dir: "/opt/elastic/logs"
+    es_config:
+      network.host: "0.0.0.0"
+      cluster.name: "correos-poc"
+      cluster.initial_master_nodes: "elastic1"
+      discovery.seed_hosts: "elastic1:9300"
+      http.port: 9200
+      node.data: true
+      node.master: false
       bootstrap.memory_lock: false
     es_plugins:
       - plugin: ingest-attachment
@@ -201,6 +227,18 @@
         #     paths: /var/log/*/*.log
 
 - hosts: elastic3
+  roles:
+    - role: elastic.beats
+  vars:
+    beats_version: 7.16.1
+    beat: filebeat
+    output_conf: {"elasticsearch":{"hosts":["elastic1:9200","elastic2:9200","elastic3:9200"], "username":"elastic", "password":"elastic"}}
+    beat_conf:
+      filebeat:
+        modules:
+          - module: "elasticsearch"
+
+- hosts: elastic4
   roles:
     - role: elastic.beats
   vars:
