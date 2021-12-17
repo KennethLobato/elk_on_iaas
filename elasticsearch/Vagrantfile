@@ -1,7 +1,8 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
-BOX_IMAGE = "centos/7"
+#BOX_IMAGE = "centos/7"
+BOX_IMAGE = "generic/rhel7"
 NODE_COUNT = 3
 BASE_IP = "192.168.56"
 BASE_RANGE = 20
@@ -10,16 +11,16 @@ NODE_NAME = "elastic"
 #global script
 $global = <<SCRIPT
 #check for private key for vm-vm comm
-[ -f /vagrant/id_rsa ] || {
+[ -f /home/vagrant/shared/id_rsa ] || {
   ssh-keygen -t rsa -f /vagrant/id_rsa -q -N ''
 }
 #deploy key
 [ -f /home/vagrant/.ssh/id_rsa ] || {
-    cp /vagrant/id_rsa /home/vagrant/.ssh/id_rsa
+    cp /home/vagrant/shared/id_rsa /home/vagrant/.ssh/id_rsa
     chmod 0600 /home/vagrant/.ssh/id_rsa
 }
 #allow ssh passwordless
-cat /vagrant/id_rsa.pub >> /home/vagrant/.ssh/authorized_keys
+cat /home/vagrant/shared/id_rsa.pub >> /home/vagrant/.ssh/authorized_keys
 chmod 0600 /home/vagrant/.ssh/authorized_keys
 
 #exclude node* from host checking
@@ -48,7 +49,16 @@ SCRIPT
 
 Vagrant.configure("2") do |config|
 
+  print "Please insert the following information to setup RHEL 7 Subscripton Manager:\n"
+  print "1) Username:\n"
+  username = STDIN.gets.chomp
+  print "2) Password:\n"
+  password = STDIN.noecho(&:gets).chomp
+  print "3) PoolID:\n"
+  poolid = STDIN.gets.chomp
+
   config.vm.provision "shell", inline: $global
+  config.vm.provision "shell", :path => "rhel-subscription-manager.sh", :args => [username, password, poolid]
 
   (1..NODE_COUNT).to_a.reverse.each do |i|
     config.vm.define "#{NODE_NAME}#{i}" do |subconfig|
@@ -70,13 +80,13 @@ Vagrant.configure("2") do |config|
          vb.cpus = 2
       end
       if "#{i}" == "1"
-        #subconfig.vm.synced_folder "../../../UEBA_Solution", "/home/vagrant/UEBA_Solution", owner: "vagrant", group: "vagrant", type: "rsync"
+        subconfig.vm.synced_folder ".", "/home/vagrant/shared/", owner: "vagrant", group: "vagrant"
         subconfig.vm.network "forwarded_port", guest: 5601, host: 5601
         subconfig.vm.network "forwarded_port", guest: 9200, host: 9200
         subconfig.vm.provision "shell", inline: <<-SHELL
           yum -y update
           yum -y install nc net-tools vim
-          yum -y install epel-release
+          #yum -y install epel-release
           yum -y update
           yum -y install ansible
           yum -y update
@@ -90,24 +100,35 @@ Vagrant.configure("2") do |config|
             }
           done
           mkdir -p /etc/ansible/group_vars
-          grep "---" /etc/ansible/group_vars/servers &> /dev/null || {
-            echo "---" >> /etc/ansible/group_vars/servers
-          }
           grep "ansible_ssh_user: vagrant" /etc/ansible/group_vars/servers &> /dev/null || {
+            echo "---" >> /etc/ansible/group_vars/servers
             echo "ansible_ssh_user: vagrant" >> /etc/ansible/group_vars/servers
           }
-          #INSTALL ANSIBLE GALAXIES FOR ELASTICSEARCH
-          sudo -u vagrant ansible-galaxy install elastic.elasticsearch,v7.16.1
-          sudo -u vagrant ansible-galaxy install elastic.beats,v7.16.1
 
-          sudo -u vagrant cp -r /vagrant/* /home/vagrant/
-          su - vagrant -c "ansible-playbook -i /etc/ansible/hosts /home/vagrant/install_ELK.yml"
+          firewall-cmd --zone=public --add-port=5601/tcp --permanent
+          firewall-cmd --reload
+          firewall-cmd --zone=public --add-port=9200/tcp --permanent
+          firewall-cmd --reload
+          firewall-cmd --zone=public --add-port=9300/tcp --permanent
+          firewall-cmd --reload
+
+          #INSTALL ANSIBLE GALAXIES FOR ELASTICSEARCH
+          sudo ansible-galaxy install elastic.elasticsearch,v7.16.1 -p /etc/ansible/roles/
+          sudo ansible-galaxy install elastic.beats,v7.16.1 -p /etc/ansible/roles/
+
+          #sudo -u vagrant cp -r /vagrant/* /home/vagrant/
+          su - vagrant -c "ansible-playbook -i /etc/ansible/hosts /home/vagrant/shared/install_ELK.yml"
 
         SHELL
       else
+        subconfig.vm.synced_folder ".", "/home/vagrant/shared/", owner: "vagrant", group: "vagrant"
         subconfig.vm.provision "shell", inline: <<-SHELL
           yum -y update
           yum -y install nc net-tools vim
+          firewall-cmd --zone=public --add-port=9200/tcp --permanent
+          firewall-cmd --reload
+          firewall-cmd --zone=public --add-port=9300/tcp --permanent
+          firewall-cmd --reload
         SHELL
       end
 
