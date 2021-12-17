@@ -2,11 +2,13 @@
   roles:
     - role: elastic.elasticsearch
   vars:
+    es_version: "7.16.1"
+    oss_version: false
     es_data_dirs:
       - "/opt/elastic/data"
     es_log_dir: "/opt/elastic/logs"
     es_config:
-      network.host: "0.0.0.0"
+      network.host: "_eth1_"
       cluster.name: "test-cluster"
       cluster.initial_master_nodes: "elastic1"
       discovery.seed_hosts: "elastic1:9300"
@@ -111,8 +113,13 @@
   roles:
     - role: elastic.elasticsearch
   vars:
+    es_version: "7.16.1"
+    oss_version: false
+    es_data_dirs:
+      - "/opt/elastic/data"
+    es_log_dir: "/opt/elastic/logs"
     es_config:
-      network.host: "0.0.0.0"
+      network.host: "_eth1_"
       cluster.name: "test-cluster"
       cluster.initial_master_nodes: "elastic1"
       discovery.seed_hosts: "elastic1:9300"
@@ -132,8 +139,13 @@
   roles:
     - role: elastic.elasticsearch
   vars:
+    es_version: "7.16.1"
+    oss_version: false
+    es_data_dirs:
+      - "/opt/elastic/data"
+    es_log_dir: "/opt/elastic/logs"
     es_config:
-      network.host: "0.0.0.0"
+      network.host: "_eth1_"
       cluster.name: "test-cluster"
       cluster.initial_master_nodes: "elastic1"
       discovery.seed_hosts: "elastic1:9300"
