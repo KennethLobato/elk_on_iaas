@@ -86,10 +86,15 @@ Vagrant.configure("2") do |config|
         subconfig.vm.provision "shell", inline: <<-SHELL
           yum -y update
           yum -y install nc net-tools vim
+          subscription-manager repos --enable rhel-7-server-ansible-2.5-rpms
+          rpm -Uvh https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+          yum -y install htop
+
           #yum -y install epel-release
           yum -y update
           yum -y install ansible
           yum -y update
+
           #yum -y install python2-pip
           #pip2 install --upgrade pip
           #pip2 install ansible==2.7.17
