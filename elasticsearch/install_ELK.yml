@@ -23,6 +23,14 @@
      - alerting
     es_api_basic_auth_username: elastic
     es_api_basic_auth_password: elastic
+    es_enable_http_ssl: true
+    es_enable_transport_ssl: true
+    es_ssl_keystore: "./my-keystore.p12"
+    es_ssl_truststore: "./my-ca.p12"
+    es_ssl_keystore_password: ""
+    es_ssl_truststore_password: ""
+    es_validate_certs: no
+
     es_users:
       native:
         kibana:
@@ -134,6 +142,13 @@
      - alerting
     es_api_basic_auth_username: elastic
     es_api_basic_auth_password: elastic
+    es_enable_http_ssl: true
+    es_enable_transport_ssl: true
+    es_ssl_keystore: "./my-keystore.p12"
+    es_ssl_truststore: "./my-ca.p12"
+    es_ssl_keystore_password: ""
+    es_ssl_truststore_password: ""
+    es_validate_certs: no
 
 - hosts: elastic3
   roles:
@@ -160,6 +175,13 @@
      - alerting
     es_api_basic_auth_username: elastic
     es_api_basic_auth_password: elastic
+    es_enable_http_ssl: true
+    es_enable_transport_ssl: true
+    es_ssl_keystore: "./my-keystore.p12"
+    es_ssl_truststore: "./my-ca.p12"
+    es_ssl_keystore_password: ""
+    es_ssl_truststore_password: ""
+    es_validate_certs: no
 
 - hosts: elastic4
   roles:
@@ -186,6 +208,13 @@
      - alerting
     es_api_basic_auth_username: elastic
     es_api_basic_auth_password: elastic
+    es_enable_http_ssl: true
+    es_enable_transport_ssl: true
+    es_ssl_keystore: "./my-keystore.p12"
+    es_ssl_truststore: "./my-ca.p12"
+    es_ssl_keystore_password: ""
+    es_ssl_truststore_password: ""
+    es_validate_certs: no
 
 - hosts: elastic1
   roles:
@@ -193,7 +222,7 @@
   vars:
     beats_version: 7.16.1
     beat: filebeat
-    output_conf: {"elasticsearch":{"hosts":["elastic1:9200","elastic2:9200","elastic3:9200"], "username":"elastic", "password":"elastic"}}
+    output_conf: {"elasticsearch":{"hosts":["https://elastic1:9200","https://elastic2:9200","https://elastic3:9200"], "username":"elastic", "password":"elastic", "ssl.keystore.path": "/etc/elasticsearch/certs/my-keystore.p12","ssl.keystore.password": "", "ssl.truststore.path": "/etc/elasticsearch/certs/my-ca.p12", "ssl.truststore.password": "", "ssl.verification_mode": "none"}}
     beat_conf:
       filebeat:
         modules:
@@ -226,13 +255,25 @@
         #     enabled: true
         #     paths: /var/log/*/*.log
 
+- hosts: elastic2
+  roles:
+    - role: elastic.beats
+  vars:
+    beats_version: 7.16.1
+    beat: filebeat
+    output_conf: {"elasticsearch":{"hosts":["https://elastic1:9200","https://elastic2:9200","https://elastic3:9200"], "username":"elastic", "password":"elastic", "ssl.keystore.path": "/etc/elasticsearch/certs/my-keystore.p12","ssl.keystore.password": "", "ssl.truststore.path": "/etc/elasticsearch/certs/my-ca.p12", "ssl.truststore.password": "", "ssl.verification_mode": "none"}}
+    beat_conf:
+      filebeat:
+        modules:
+          - module: "elasticsearch"
+
 - hosts: elastic3
   roles:
     - role: elastic.beats
   vars:
     beats_version: 7.16.1
     beat: filebeat
-    output_conf: {"elasticsearch":{"hosts":["elastic1:9200","elastic2:9200","elastic3:9200"], "username":"elastic", "password":"elastic"}}
+    output_conf: {"elasticsearch":{"hosts":["https://elastic1:9200","https://elastic2:9200","https://elastic3:9200"], "username":"elastic", "password":"elastic", "ssl.keystore.path": "/etc/elasticsearch/certs/my-keystore.p12","ssl.keystore.password": "", "ssl.truststore.path": "/etc/elasticsearch/certs/my-ca.p12", "ssl.truststore.password": "", "ssl.verification_mode": "none"}}
     beat_conf:
       filebeat:
         modules:
@@ -244,11 +285,12 @@
   vars:
     beats_version: 7.16.1
     beat: filebeat
-    output_conf: {"elasticsearch":{"hosts":["elastic1:9200","elastic2:9200","elastic3:9200"], "username":"elastic", "password":"elastic"}}
+    output_conf: {"elasticsearch":{"hosts":["https://elastic1:9200","https://elastic2:9200","https://elastic3:9200"], "username":"elastic", "password":"elastic", "ssl.keystore.path": "/etc/elasticsearch/certs/my-keystore.p12","ssl.keystore.password": "", "ssl.truststore.path": "/etc/elasticsearch/certs/my-ca.p12", "ssl.truststore.password": "", "ssl.verification_mode": "none"}}
     beat_conf:
       filebeat:
         modules:
           - module: "elasticsearch"
+
 
 - hosts: elastic2
   roles:
@@ -256,7 +298,7 @@
   vars:
     beats_version: 7.16.1
     beat: metricbeat
-    output_conf: {"elasticsearch":{"hosts":["elastic1:9200","elastic2:9200","elastic3:9200"], "username":"elastic", "password":"elastic"}}
+    output_conf: {"elasticsearch":{"hosts":["https://elastic1:9200","https://elastic2:9200","https://elastic3:9200"], "username":"elastic", "password":"elastic", "ssl.keystore.path": "/etc/elasticsearch/certs/my-keystore.p12","ssl.keystore.password": "", "ssl.truststore.path": "/etc/elasticsearch/certs/my-ca.p12", "ssl.truststore.password": "", "ssl.verification_mode": "none"}}
     beat_conf:
       metricbeat:
         modules:
@@ -273,10 +315,15 @@
               - shard
             enabled: true
             period: 10s
-            hosts: ["http://elastic1:9200", "http://elastic2:9200", "http://elastic3:9200"]
+            hosts: ["https://elastic1:9200", "https://elastic2:9200", "https://elastic3:9200"]
             username: "elastic"
             password: "elastic"
             xpack.enabled: true
+            ssl.keystore.path: "(/etc/elasticsearch/certs/my-keystore.p12"
+            ssl.keystore.password: ""
+            ssl.truststore.path: "/etc/elasticsearch/certs/my-ca.p12"
+            ssl.truststore.password: ""
+            ssl.verification: "none"
           - module: "kibana"
             metricsets:
               - stats

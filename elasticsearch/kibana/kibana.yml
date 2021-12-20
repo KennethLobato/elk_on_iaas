@@ -57,7 +57,11 @@ elasticsearch.password: "elastic"
 # xpack.security.http.ssl.client_authentication in Elasticsearch is set to required.
 #elasticsearch.ssl.certificate: /path/to/your/client.crt
 #elasticsearch.ssl.key: /path/to/your/client.key
-
+elasticsearch.ssl.keystore.password: ''
+elasticsearch.ssl.keystore.path: "/etc/kibana/certs/my-keystore.p12"
+elasticsearch.ssl.truststore.password: ''
+elasticsearch.ssl.truststore.path: "/etc/kibana/certs/my-ca.p12"
+elasticsearch.ssl.verification_mode: "none"
 # Optional setting that enables you to specify a path to the PEM file for the certificate
 # authority for your Elasticsearch instance.
 #elasticsearch.ssl.certificateAuthorities: [ "/path/to/your/CA.pem" ]
